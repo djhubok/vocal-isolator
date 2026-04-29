@@ -1,0 +1,4 @@
+flask>=2.3
+pydub>=0.25
+requests>=2.31
+gunicorn>=21.0

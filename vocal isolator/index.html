@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>VocalIsolator — powered by lalal.ai</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet"/>
+  <script src="https://unpkg.com/wavesurfer.js@7/dist/wavesurfer.min.js"></script>
+  <script src="https://unpkg.com/wavesurfer.js@7/dist/plugins/regions.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #08080f;
+      --surface: #0f0f1a;
+      --border:  #1a1a2e;
+      --accent:  #00ffc3;
+      --accent2: #ff3cac;
+      --accent3: #7b61ff;
+      --text:    #e8e8f0;
+      --muted:   #52526e;
+    }
+
+    body {
+      font-family: 'Space Mono', monospace;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px 80px;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,255,195,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,255,195,0.025) 1px, transparent 1px);
+      background-size: 48px 48px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    header {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      margin-bottom: 36px;
+    }
+
+    .logo {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: clamp(2rem, 5vw, 3rem);
+      background: linear-gradient(135deg, var(--accent), var(--accent3), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .powered {
+      font-size: 0.65rem;
+      color: var(--muted);
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+
+    .powered span { color: var(--accent3); }
+
+    /* Steps */
+    .steps {
+      display: flex;
+      width: 100%;
+      max-width: 860px;
+      margin-bottom: 24px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .step {
+      flex: 1;
+      text-align: center;
+      font-size: 0.6rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding-bottom: 10px;
+      border-bottom: 2px solid var(--border);
+      transition: color 0.3s, border-color 0.3s;
+    }
+
+    .step.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .step-num { display: block; font-family: 'Syne', sans-serif; font-size: 1rem; font-weight: 800; margin-bottom: 3px; }
+
+    /* Card */
+    .card {
+      position: relative;
+      z-index: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+      width: 100%;
+      max-width: 860px;
+      box-shadow: 0 0 80px rgba(0,255,195,0.03), 0 8px 40px rgba(0,0,0,0.7);
+    }
+
+    .label {
+      font-size: 0.6rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 10px;
+    }
+
+    /* Drop zone */
+    #drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 12px;
+      padding: 40px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      margin-bottom: 28px;
+    }
+
+    #drop-zone:hover, #drop-zone.over {
+      border-color: var(--accent);
+      background: rgba(0,255,195,0.03);
+    }
+
+    #drop-zone .icon { font-size: 2.4rem; display: block; margin-bottom: 10px; }
+    #drop-zone p { color: var(--muted); font-size: 0.82rem; line-height: 1.8; }
+    #drop-zone strong { color: var(--text); }
+    #file-input { display: none; }
+
+    .badge {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      background: rgba(0,255,195,0.07);
+      border: 1px solid rgba(0,255,195,0.2);
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 0.78rem;
+      color: var(--accent);
+      margin-bottom: 28px;
+    }
+    .badge.show { display: flex; }
+
+    /* Divider */
+    .hr { height: 1px; background: var(--border); margin: 24px 0; }
+
+    /* Waveform */
+    #wave-section { display: none; }
+    #wave-section.show { display: block; }
+
+    #waveform {
+      background: #080812;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      min-height: 120px;
+    }
+
+    .transport {
+      display: flex;
+      gap: 10px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .btn-sm {
+      background: var(--border);
+      border: 1px solid #22223a;
+      color: var(--text);
+      border-radius: 8px;
+      padding: 8px 13px;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .btn-sm:hover { background: #22223a; color: var(--accent); }
+
+    .cursor-display { font-size: 0.72rem; color: var(--muted); margin-left: auto; }
+    .cursor-display span { color: var(--accent); }
+
+    /* Range inputs */
+    .range-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .input-group { display: flex; flex-direction: column; gap: 6px; }
+    .input-group label { font-size: 0.6rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted); }
+
+    .input-group input {
+      background: #080812;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: var(--text);
+      font-family: 'Space Mono', monospace;
+      font-size: 0.88rem;
+      transition: border-color 0.15s;
+    }
+    .input-group input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,255,195,0.08); }
+
+    .hint { font-size: 0.7rem; color: var(--muted); margin-bottom: 20px; line-height: 1.7; }
+    .hint strong { color: var(--accent3); }
+
+    /* Process button */
+    #btn-process {
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(135deg, var(--accent), var(--accent3));
+      color: #08080f;
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 1rem;
+      letter-spacing: 0.04em;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.15s;
+    }
+    #btn-process:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+    #btn-process:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+
+    /* Status */
+    #status-box { display: none; margin-top: 20px; padding: 18px 22px; background: #080812; border: 1px solid var(--border); border-radius: 10px; }
+    #status-box.show { display: block; }
+
+    .prog-wrap { height: 3px; background: var(--border); border-radius: 4px; overflow: hidden; margin: 10px 0; }
+    .prog-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent3));
+      border-radius: 4px;
+      width: 0%;
+      transition: width 0.5s ease;
+      animation: pulse 1.6s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.55; } }
+
+    #status-msg { font-size: 0.78rem; color: var(--muted); }
+    #status-msg.ok  { color: var(--accent); }
+    #status-msg.err { color: #ff5555; }
+
+    /* Result */
+    #result-box { display: none; margin-top: 20px; padding: 24px; background: rgba(0,255,195,0.04); border: 1px solid rgba(0,255,195,0.18); border-radius: 12px; }
+    #result-box.show { display: block; }
+
+    #result-box h3 { font-family: 'Syne', sans-serif; font-size: 0.95rem; margin-bottom: 14px; color: var(--accent); }
+
+    #result-audio { width: 100%; margin-bottom: 14px; border-radius: 8px; }
+
+    .btn-dl {
+      display: inline-block;
+      padding: 10px 20px;
+      background: transparent;
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      border-radius: 8px;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.75rem;
+      text-decoration: none;
+      transition: background 0.15s, color 0.15s;
+    }
+    .btn-dl:hover { background: var(--accent); color: #08080f; }
+
+    /* Placeholder */
+    #placeholder { text-align: center; padding: 20px 0; color: var(--muted); font-size: 0.78rem; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">VocalIsolator</div>
+  <p class="powered">Powered by <span>lalal.ai</span> — Separación profesional de voces</p>
+</header>
+
+<div class="steps" id="steps-bar">
+  <div class="step active" id="s1"><span class="step-num">01</span>Subir</div>
+  <div class="step" id="s2"><span class="step-num">02</span>Seleccionar</div>
+  <div class="step" id="s3"><span class="step-num">03</span>Procesar</div>
+  <div class="step" id="s4"><span class="step-num">04</span>Resultado</div>
+</div>
+
+<div class="card">
+
+  <p class="label">01 — Archivo de audio</p>
+  <div id="drop-zone">
+    <span class="icon">🎵</span>
+    <p><strong>Arrastrá tu archivo aquí</strong><br>o hacé clic para seleccionar</p>
+    <p style="margin-top:6px;font-size:0.68rem;">MP3 · WAV · FLAC · OGG</p>
+  </div>
+  <input type="file" id="file-input" accept=".mp3,.wav,.flac,.ogg,audio/*"/>
+
+  <div class="badge" id="badge">
+    <span>🎧</span>
+    <span id="badge-name">—</span>
+  </div>
+
+  <div id="wave-section">
+    <p class="label">02 — Seleccioná el rango de tiempo</p>
+    <p class="hint"><strong>Arrastrá sobre la onda</strong> para marcar la zona donde querés aislar las voces. Podés ajustar los bordes o usar los campos de abajo.</p>
+
+    <div id="waveform"></div>
+
+    <div class="transport">
+      <button class="btn-sm" id="btn-play">▶ Play</button>
+      <button class="btn-sm" id="btn-stop">■ Stop</button>
+      <button class="btn-sm" id="btn-zi">🔍+</button>
+      <button class="btn-sm" id="btn-zo">🔍−</button>
+      <span class="cursor-display">Cursor: <span id="cur-time">0.00s</span></span>
+    </div>
+
+    <div class="hr"></div>
+
+    <p class="label">03 — Ajuste fino del rango</p>
+    <div class="range-row">
+      <div class="input-group">
+        <label>⏮ Start (segundos)</label>
+        <input type="number" id="t-start" step="0.1" min="0" value="0"/>
+      </div>
+      <div class="input-group">
+        <label>⏭ End (segundos)</label>
+        <input type="number" id="t-end" step="0.1" min="0" value="0"/>
+      </div>
+    </div>
+
+    <button id="btn-process">⚡ Procesar con lalal.ai</button>
+
+    <div id="status-box">
+      <div id="status-msg">Procesando…</div>
+      <div class="prog-wrap"><div class="prog-fill" id="prog"></div></div>
+    </div>
+
+    <div id="result-box">
+      <h3>✅ ¡Listo! Canción completa con voces aisladas en el rango seleccionado</h3>
+      <audio id="result-audio" controls></audio><br/>
+      <a id="btn-dl" class="btn-dl" download="resultado_vocal.wav">⬇ Descargar WAV</a>
+    </div>
+  </div>
+
+  <div id="placeholder">Subí un archivo para ver la forma de onda.</div>
+
+</div>
+
+<script>
+  let ws = null, wsR = null, activeReg = null, zoom = 50, file = null;
+
+  const dropZone   = document.getElementById('drop-zone');
+  const fileInput  = document.getElementById('file-input');
+  const badge      = document.getElementById('badge');
+  const badgeName  = document.getElementById('badge-name');
+  const waveSection= document.getElementById('wave-section');
+  const placeholder= document.getElementById('placeholder');
+  const tStart     = document.getElementById('t-start');
+  const tEnd       = document.getElementById('t-end');
+  const btnPlay    = document.getElementById('btn-play');
+  const btnStop    = document.getElementById('btn-stop');
+  const btnZi      = document.getElementById('btn-zi');
+  const btnZo      = document.getElementById('btn-zo');
+  const btnProcess = document.getElementById('btn-process');
+  const statusBox  = document.getElementById('status-box');
+  const statusMsg  = document.getElementById('status-msg');
+  const prog       = document.getElementById('prog');
+  const resultBox  = document.getElementById('result-box');
+  const resultAudio= document.getElementById('result-audio');
+  const btnDl      = document.getElementById('btn-dl');
+  const curTime    = document.getElementById('cur-time');
+
+  function setStep(n) {
+    for (let i=1;i<=4;i++) document.getElementById('s'+i).classList.toggle('active', i<=n);
+  }
+
+  // Drop zone
+  dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('over'));
+  dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('over'); if(e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
+  fileInput.addEventListener('change', e => { if(e.target.files[0]) loadFile(e.target.files[0]); });
+
+  function loadFile(f) {
+    file = f;
+    badgeName.textContent = f.name;
+    badge.classList.add('show');
+    placeholder.style.display = 'none';
+    waveSection.classList.add('show');
+    resultBox.classList.remove('show');
+    statusBox.classList.remove('show');
+    setStep(2);
+    if(ws) { ws.destroy(); ws=null; wsR=null; activeReg=null; }
+    initWS(f);
+  }
+
+  function initWS(f) {
+    wsR = WaveSurfer.Regions.create();
+    ws  = WaveSurfer.create({
+      container: '#waveform',
+      waveColor: '#1a1a30',
+      progressColor: '#00ffc3',
+      cursorColor: '#ff3cac',
+      cursorWidth: 2,
+      height: 120,
+      barWidth: 2, barGap: 1, barRadius: 2,
+      normalize: true,
+      plugins: [wsR]
+    });
+    ws.load(URL.createObjectURL(f));
+
+    ws.on('ready', () => {
+      const dur = ws.getDuration();
+      const end = Math.min(10, dur);
+      activeReg = wsR.addRegion({ start:0, end, color:'rgba(123,97,255,0.22)', drag:true, resize:true });
+      tStart.value = 0;
+      tEnd.value   = end.toFixed(2);
+      tEnd.max = tStart.max = dur;
+    });
+
+    ws.on('timeupdate', t => curTime.textContent = t.toFixed(2)+'s');
+
+    wsR.enableDragSelection({ color:'rgba(123,97,255,0.22)' });
+    wsR.on('region-created', reg => {
+      if(activeReg && activeReg !== reg) activeReg.remove();
+      activeReg = reg;
+      tStart.value = reg.start.toFixed(2);
+      tEnd.value   = reg.end.toFixed(2);
+      setStep(3);
+    });
+    wsR.on('region-updated', reg => {
+      tStart.value = reg.start.toFixed(2);
+      tEnd.value   = reg.end.toFixed(2);
+    });
+  }
+
+  btnPlay.addEventListener('click', () => ws && ws.playPause());
+  btnStop.addEventListener('click', () => ws && ws.stop());
+  btnZi.addEventListener('click', () => { zoom=Math.min(zoom+20,300); ws&&ws.zoom(zoom); });
+  btnZo.addEventListener('click', () => { zoom=Math.max(zoom-20,10);  ws&&ws.zoom(zoom); });
+
+  function syncRegion() {
+    if(!activeReg||!ws) return;
+    const s=parseFloat(tStart.value)||0, e=parseFloat(tEnd.value)||0;
+    if(e>s && e<=ws.getDuration()) activeReg.setOptions({start:s,end:e});
+  }
+  tStart.addEventListener('change', syncRegion);
+  tEnd.addEventListener('change', syncRegion);
+
+  // Process
+  btnProcess.addEventListener('click', async () => {
+    if(!file) return alert('Primero subí un archivo.');
+    const start = parseFloat(tStart.value);
+    const end   = parseFloat(tEnd.value);
+    if(isNaN(start)||isNaN(end)||end<=start) return alert('Rango de tiempo inválido.');
+
+    btnProcess.disabled = true;
+    resultBox.classList.remove('show');
+    statusBox.classList.add('show');
+    statusMsg.className = '';
+    statusMsg.textContent = 'Subiendo segmento a lalal.ai…';
+    prog.style.width = '0%';
+    setStep(3);
+
+    // Simular progreso
+    let p = 0;
+    const timer = setInterval(() => {
+      p = Math.min(p + Math.random()*5, 88);
+      prog.style.width = p+'%';
+    }, 600);
+
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('start', start);
+      fd.append('end', end);
+
+      statusMsg.textContent = '🧠 lalal.ai está separando las voces… (puede tardar ~30s)';
+
+      const resp = await fetch('/process', { method:'POST', body:fd });
+      clearInterval(timer);
+
+      if(!resp.ok) {
+        const err = await resp.json().catch(()=>({error:'Error desconocido'}));
+        throw new Error(err.error || `HTTP ${resp.status}`);
+      }
+
+      prog.style.width = '100%';
+      statusMsg.textContent = '¡Proceso completado!';
+      statusMsg.className = 'ok';
+
+      const blob = await resp.blob();
+      const url  = URL.createObjectURL(blob);
+      resultAudio.src = url;
+      btnDl.href = url;
+      resultBox.classList.add('show');
+      setStep(4);
+
+    } catch(err) {
+      clearInterval(timer);
+      prog.style.width = '0%';
+      statusMsg.textContent = '❌ ' + err.message;
+      statusMsg.className = 'err';
+    } finally {
+      btnProcess.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>

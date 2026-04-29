@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: vocal-isolator
+    env: python
+    buildCommand: "apt-get install -y ffmpeg && pip install -r requirements.txt"
+    startCommand: "gunicorn app:app --bind 0.0.0.0:$PORT --timeout 300 --workers 2"
+    envVars:
+      - key: LALAL_API_KEY
+        sync: false   # Lo vas a cargar manualmente en el dashboard de Render
+    plan: free
