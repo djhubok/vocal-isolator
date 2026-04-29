@@ -28,6 +28,7 @@ def allowed(filename: str) -> bool:
 def lalal_upload(file_bytes: bytes, filename: str) -> str:
     headers = {
         "X-License-Key": LALAL_API_KEY,
+        "Authorization": f"license {LALAL_API_KEY}",
         "Content-Disposition": f'attachment; filename="{filename}"',
         "Content-Type": "audio/wav",
     }
@@ -40,7 +41,11 @@ def lalal_upload(file_bytes: bytes, filename: str) -> str:
 
 
 def lalal_split(file_id: str) -> None:
-    headers = {"X-License-Key": LALAL_API_KEY, "Content-Type": "application/json"}
+    headers = {
+        "X-License-Key": LALAL_API_KEY,
+        "Authorization": f"license {LALAL_API_KEY}",
+        "Content-Type": "application/json"
+    }
     payload = {"id": file_id, "stem": "vocals", "splitter": "phoenix"}
     resp = requests.post(LALAL_SPLIT, json=payload, headers=headers, timeout=60)
     resp.raise_for_status()
@@ -50,7 +55,11 @@ def lalal_split(file_id: str) -> None:
 
 
 def lalal_wait(file_id: str, max_wait: int = 300) -> dict:
-    headers  = {"X-License-Key": LALAL_API_KEY, "Content-Type": "application/json"}
+    headers = {
+        "X-License-Key": LALAL_API_KEY,
+        "Authorization": f"license {LALAL_API_KEY}",
+        "Content-Type": "application/json"
+    }
     payload  = {"id": file_id}
     deadline = time.time() + max_wait
 
